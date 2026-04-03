@@ -1,101 +1,131 @@
 #include "client.h"
 
-/* Run cient function */
-void run_client(void)
+/* =========================================================
+  runClient() is a main Level client funcion that: 
+  
+   1. connects to the server
+   2. prompts user input
+   3. enters the message transfer loop 
+   4. closes the socket on exit
+   ========================================================= */
+void runClient(void)
 {
-    int server_fd;
-
-    server_fd = connect_to_server();
+    int serverFd = connectToServer();
 
     printf("Connected to server.\n");
-    printf("Type a message and press Enter.\n");
+    printf("Type any message and press Enter.\n");
     printf("Type /quit to exit.\n");
 
-    run_client_loop(server_fd);
+    sendMessages(serverFd);
 
-    close(server_fd);
+    close(serverFd);
 }
 
-/* Function to create socket and connect to server */
-int connect_to_server(void)
+/* =========================================================
+  connectToServer creates a socket and connects to lisening 
+  socket. It uses functions socket() and connect(). 
+   ========================================================= */
+int connectToServer(void)
 {
-    int server_fd;
-    struct sockaddr_in server_addr;
+    int serverFd;
+    struct sockaddr_in serverAddr;
 
-    /* Create TCP socket */
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd < 0)
+    // create TCP socket 
+    serverFd = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverFd < 0)
     {
         perror("socket");
         exit(EXIT_FAILURE);
     }
 
-    /* Fill in server address information */
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(SERVER_PORT);
+    // resets and clears address structure values 
+    memset(&serverAddr, 0, sizeof(serverAddr));
 
-    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0)
+    // sets to IPV4 
+    serverAddr.sin_family = AF_INET;
+
+    // stores port value of socket for connection 
+    serverAddr.sin_port = htons(SERVER_PORT);
+
+    // converts IP address to binary 
+    if (inet_pton(AF_INET, SERVER_IP, &serverAddr.sin_addr) <= 0)
     {
         perror("inet_pton");
-        close(server_fd);
+        close(serverFd);
         exit(EXIT_FAILURE);
     }
 
-    /* Connect to the server */
-    if (connect(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+    // connect () is called to establish connection 
+    if (connect(serverFd, (struct sockaddr *)&serverAddr,
+                sizeof(serverAddr)) < 0)
     {
         perror("connect");
-        close(server_fd);
+        close(serverFd);
         exit(EXIT_FAILURE);
     }
 
-    return server_fd;
+    return serverFd;
 }
 
-/*Message exchange server loop*/
-void run_client_loop(int server_fd)
+/* =========================================================
+   sendMessages( ) is used to facilitate message transfer 
+   
+   How input works:
+   - fgets() reads input 
+   - send() transmits that line to the server
+   - recv() waits for the echoed reply
+   - the echoed message is then printed to the terminal
+   ========================================================= */
+void sendMessages(int serverFd)
 {
-    char send_buffer[BUFFER_SIZE];
-    char recv_buffer[BUFFER_SIZE];
-    ssize_t bytes_received;
+    char outgoing[BUFFER_SIZE];
+    char incoming[BUFFER_SIZE];
+    ssize_t bytesReceived;
 
     while (1)
     {
-        memset(send_buffer, 0, sizeof(send_buffer));
-        memset(recv_buffer, 0, sizeof(recv_buffer));
+        // Clears buffers before next iteration 
+        memset(outgoing, 0, sizeof(outgoing));
+        memset(incoming, 0, sizeof(incoming));
 
         printf("> ");
 
-        /* Read one line */
-        if (fgets(send_buffer, BUFFER_SIZE, stdin) == NULL)
+        // Reads keyboard line using fgets( ) 
+        if (fgets(outgoing, BUFFER_SIZE, stdin) == NULL)
         {
             printf("\nInput ended.\n");
             break;
         }
 
-        /* client acknowledges and exits */
-        if (strncmp(send_buffer, "/quit", 5) == 0)
+        // User exit conditiion 
+        if (strncmp(outgoing, "/quit", 5) == 0)
         {
             printf("Closing connection.\n");
             break;
         }
 
-        /* Send typed message to server */
-        if (send(server_fd, send_buffer, strlen(send_buffer), 0) < 0)
+        // send() to send message to server 
+        if (send(serverFd, outgoing, strlen(outgoing), 0) < 0)
         {
             perror("send");
             break;
         }
 
-        /* Receive echoed reply from server */
-        bytes_received = recv(server_fd, recv_buffer, BUFFER_SIZE - 1, 0);
-        if (bytes_received > 0)
+        /* -------------------------------------------------
+           Wait for the server to echo the message back:
+           
+           > 0 : reply received
+           = 0 : server closed the connection
+           < 0 : error
+           ------------------------------------------------- */
+        bytesReceived = recv(serverFd, incoming, BUFFER_SIZE - 1, 0);
+
+        if (bytesReceived > 0)
         {
-            recv_buffer[bytes_received] = '\0';
-            printf("Echoed back: %s", recv_buffer);
+            incoming[bytesReceived] = '\0';
+            printf("Echoed back: %s", incoming);
         }
-        else if (bytes_received == 0)
+        else if (bytesReceived == 0)
         {
             printf("Server closed the connection.\n");
             break;

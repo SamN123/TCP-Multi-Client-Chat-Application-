@@ -139,11 +139,14 @@ void handleClients(int listenFd)
             }
             else
             {
-                addClient(clients, newSocket);
-                printf("Client connected: %s\n",
-                       inet_ntoa(clientAddr.sin_addr));
+                int clientIndex = addClient(clients, newSocket);
+
+                if (clientIndex != -1)
+             {
+                printf("Client %d connected.\n", clientIndex + 1);
+             }
             }
-        }
+         }
 
         // monitor connected client sockets for messages 
         for (i = 0; i < MAX_CLIENTS; i++)
@@ -165,7 +168,7 @@ void handleClients(int listenFd)
                 
                     message[bytesRead] = '\0';
 
-                    printf("Message received: %s", message);
+                    printf("Message received from client %d: %s", i + 1, message);
 
                     // echoes message back to client 
                     if (send(clients[i], message, bytesRead, 0) < 0)
@@ -192,7 +195,7 @@ void handleClients(int listenFd)
 }
 
 // addClient( ) stores client in array 
-void addClient(int clients[], int newSocket)
+int addClient(int clients[], int newSocket)
 {
     int i;
 
@@ -201,12 +204,13 @@ void addClient(int clients[], int newSocket)
         if (clients[i] == -1)
         {
             clients[i] = newSocket;
-            return;
+            return i;
         }
     }
 
     printf("Server full. Rejecting connection.\n");
     close(newSocket);
+    return -1;
 }
 
 // removeClient() removes client from array 

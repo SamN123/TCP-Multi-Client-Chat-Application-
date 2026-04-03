@@ -98,12 +98,17 @@ void sendMessages(int serverFd)
         }
 
         // User exit conditiion 
-        if (strncmp(outgoing, "/quit", 5) == 0)
         {
-            printf("Closing connection.\n");
-            break;
-        }
+         char *endPtr;
+         long value = strtol(outgoing, &endPtr, 10);
 
+         if (endPtr != outgoing && value < 0)
+       {
+           printf("Closing connection.\n");
+           break;
+       }
+       }
+  
         // send() to send message to server 
         if (send(serverFd, outgoing, strlen(outgoing), 0) < 0)
         {
@@ -123,7 +128,7 @@ void sendMessages(int serverFd)
         if (bytesReceived > 0)
         {
             incoming[bytesReceived] = '\0';
-            printf("Echoed back: %s", incoming);
+            printf("Echoed message: %s", incoming);
         }
         else if (bytesReceived == 0)
         {

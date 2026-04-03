@@ -14,7 +14,7 @@ void runClient(void)
 
     printf("Connected to server.\n");
     printf("Type any message and press Enter.\n");
-    printf("Type /quit to exit.\n");
+    printf("Type negative number to exit.\n");
 
     sendMessages(serverFd);
 

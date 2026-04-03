@@ -1,198 +1,220 @@
 #include "server.h"
 
-/* Server initialization */
-void run_server(void)
+// runServer( ) builds the listening socket and hands control to 
+// handleClients( ) function 
+void runServer(void)
 {
-    int listen_fd;
-
-    listen_fd = create_server_socket();
+    int listenFd = createServerSocket();
 
     printf("Server started on port %d...\n", SERVER_PORT);
 
-    run_server_loop(listen_fd);
+    handleClients(listenFd);
 
-    close(listen_fd);
+    close(listenFd);
 }
 
-/*Create and bind socket */
-int create_server_socket(void)
+/* =========================================================
+   createServerSocket ( ) gets the server ready to handle  
+   and manage multipe client terminals and messages 
+   ========================================================= */
+int createServerSocket(void)
 {
-    int listen_fd;
-    int opt_value = 1;
-    struct sockaddr_in server_addr;
+    int listenFd;
+    int allowReuse = 1;
+    struct sockaddr_in serverAddr;
 
-    /* Create TCP socket */
-    listen_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (listen_fd < 0)
+    // create listening TCP socket 
+    listenFd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listenFd < 0)
     {
         perror("socket");
         exit(EXIT_FAILURE);
     }
 
-    /* Allow quick restart after closing the server */
-    if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt_value, sizeof(opt_value)) < 0)
+    // allows for reuse of socket port on restart 
+    if (setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR,
+                   &allowReuse, sizeof(allowReuse)) < 0)
     {
         perror("setsockopt");
-        close(listen_fd);
+        close(listenFd);
         exit(EXIT_FAILURE);
     }
+    
+    // resets and clears address values before initialization 
+    memset(&serverAddr, 0, sizeof(serverAddr));
 
-    /* Fill in address information */
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_addr.sin_port = htons(SERVER_PORT);
+    // uses IPV4
+    serverAddr.sin_family = AF_INET;
 
-    /* Bind socket to port */
-    if (bind(listen_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+    serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    serverAddr.sin_port = htons(SERVER_PORT);
+
+    // bind ( ) is used to connect socket to right port 
+    if (bind(listenFd, (struct sockaddr *)&serverAddr,
+             sizeof(serverAddr)) < 0)
     {
         perror("bind");
-        close(listen_fd);
+        close(listenFd);
         exit(EXIT_FAILURE);
     }
 
-    /* Start listening for incoming clients */
-    if (listen(listen_fd, BACKLOG) < 0)
+    // listen ( ) is used to put socket into listening mode 
+    if (listen(listenFd, BACKLOG) < 0)
     {
         perror("listen");
-        close(listen_fd);
+        close(listenFd);
         exit(EXIT_FAILURE);
     }
 
-    return listen_fd;
+    return listenFd;
 }
 
-/* Main loop */
-void run_server_loop(int listen_fd)
+/* =========================================================
+   handleClients( ) is the main server loop that controls
+   the main processes to manage the multiple client server
+   in these steps:
+   
+   1. Tracks connected clients in list
+   2. listening socket listens for requests
+   3. accepts messages and echoes back message 
+   4. Remove and add clients to list 
+   ========================================================= */
+void handleClients(int listenFd)
 {
-    int client_sockets[MAX_CLIENTS];
-    fd_set read_set;
-    int max_fd;
-    int ready_count;
+    int clients[MAX_CLIENTS];
+    fd_set readSet;
     int i;
 
-    /* Mark all client slots as empty */
+    // initializes clients as empty 
     for (i = 0; i < MAX_CLIENTS; i++)
     {
-        client_sockets[i] = -1;
+        clients[i] = -1;
     }
 
+    // infinite while loop to run server 
     while (1)
     {
-        /* Rebuild the read set on every loop */
-        FD_ZERO(&read_set);
-        FD_SET(listen_fd, &read_set);
-        max_fd = listen_fd;
+        int maxFd = listenFd;
+        FD_ZERO(&readSet);
 
-        /* Add active client sockets into the read set */
+        // monitors listening socket for new requests 
+        FD_SET(listenFd, &readSet);
+
+        // add all active clients to the set 
         for (i = 0; i < MAX_CLIENTS; i++)
         {
-            if (client_sockets[i] != -1)
+            if (clients[i] != -1)
             {
-                FD_SET(client_sockets[i], &read_set);
+                FD_SET(clients[i], &readSet);
 
-                if (client_sockets[i] > max_fd)
+                if (clients[i] > maxFd)
                 {
-                    max_fd = client_sockets[i];
+                    maxFd = clients[i];
                 }
             }
         }
 
-        /* Wait for activity on any monitored socket */
-        ready_count = select(max_fd + 1, &read_set, NULL, NULL, NULL);
-        if (ready_count < 0)
+
+        if (select(maxFd + 1, &readSet, NULL, NULL, NULL) < 0)
         {
             perror("select");
             continue;
         }
 
-        /* If the listening socket is ready, accept a new client */
-        if (FD_ISSET(listen_fd, &read_set))
+        // Handles connection request 
+        if (FD_ISSET(listenFd, &readSet))
         {
-            int new_fd;
-            struct sockaddr_in client_addr;
-            socklen_t client_len = sizeof(client_addr);
+            int newSocket;
+            struct sockaddr_in clientAddr;
+            socklen_t clientLen = sizeof(clientAddr);
 
-            new_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &client_len);
-            if (new_fd < 0)
+            newSocket = accept(listenFd,
+                               (struct sockaddr *)&clientAddr,
+                               &clientLen);
+
+            if (newSocket < 0)
             {
                 perror("accept");
             }
             else
             {
-                add_client(client_sockets, new_fd);
-
-                printf("Client connected: %s:%d\n",
-                       inet_ntoa(client_addr.sin_addr),
-                       ntohs(client_addr.sin_port));
+                addClient(clients, newSocket);
+                printf("Client connected: %s\n",
+                       inet_ntoa(clientAddr.sin_addr));
             }
         }
 
-        /* Check each connected client for incoming data */
+        // monitor connected client sockets for messages 
         for (i = 0; i < MAX_CLIENTS; i++)
         {
-            if (client_sockets[i] != -1 && FD_ISSET(client_sockets[i], &read_set))
+            if (clients[i] != -1 && FD_ISSET(clients[i], &readSet))
             {
-                char buffer[BUFFER_SIZE];
-                ssize_t bytes_read;
+                char message[BUFFER_SIZE];
+                ssize_t bytesRead;
 
-                memset(buffer, 0, sizeof(buffer));
+                // clears buffer 
+                memset(message, 0, sizeof(message));
 
-                /* Receive message from one client */
-                bytes_read = recv(client_sockets[i], buffer, BUFFER_SIZE - 1, 0);
+                // reads data using recv( ) 
+                bytesRead = recv(clients[i], message,
+                                 BUFFER_SIZE - 1, 0);
 
-                if (bytes_read > 0)
+                if (bytesRead > 0)
                 {
-                    buffer[bytes_read] = '\0';
+                
+                    message[bytesRead] = '\0';
 
-                    printf("Message received: %s", buffer);
+                    printf("Message received: %s", message);
 
-                    /* Echo the same message back to the sender */
-                    if (send(client_sockets[i], buffer, bytes_read, 0) < 0)
+                    // echoes message back to client 
+                    if (send(clients[i], message, bytesRead, 0) < 0)
                     {
                         perror("send");
-                        remove_client(client_sockets, i);
+                        removeClient(clients, i);
                     }
                 }
-                else if (bytes_read == 0)
+                else if (bytesRead == 0)
                 {
+                    // recv() == 0 means the client closed the connection 
                     printf("Client in slot %d disconnected.\n", i);
-                    remove_client(client_sockets, i);
+                    removeClient(clients, i);
                 }
                 else
                 {
+                    // recv() < 0 means a socket read error happened
                     perror("recv");
-                    remove_client(client_sockets, i);
+                    removeClient(clients, i);
                 }
             }
         }
     }
 }
 
-/* Added client */
-void add_client(int client_sockets[], int new_fd)
+// addClient( ) stores client in array 
+void addClient(int clients[], int newSocket)
 {
     int i;
 
     for (i = 0; i < MAX_CLIENTS; i++)
     {
-        if (client_sockets[i] == -1)
+        if (clients[i] == -1)
         {
-            client_sockets[i] = new_fd;
+            clients[i] = newSocket;
             return;
         }
     }
 
-    printf("Server full. Connection rejected.\n");
-    close(new_fd);
+    printf("Server full. Rejecting connection.\n");
+    close(newSocket);
 }
 
-/*Remove client */
-void remove_client(int client_sockets[], int index)
+// removeClient() removes client from array 
+void removeClient(int clients[], int index)
 {
-    if (client_sockets[index] != -1)
+    if (clients[index] != -1)
     {
-        close(client_sockets[index]);
-        client_sockets[index] = -1;
+        close(clients[index]);
+        clients[index] = -1;
     }
 }

@@ -1,7 +1,7 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
-/*libraries used */
+// Libraries used
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -11,20 +11,20 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-/*CONSTANT VALUES USED */
+// Constants defined for client use 
 #define SERVER_IP "127.0.0.1"
 #define SERVER_PORT 8080
 #define BUFFER_SIZE 1024
 
-/*Function Declarations*/
+//Client Function Declarations 
 
-/* Entry level */
-void run_client(void);
+// Main level client function handler 
+void runClient(void);
 
-/* Create socket and connect  */
-int connect_to_server(void);
+// Function to create a socket and connect to the server 
+int connectToServer(void);
 
-/* Send user input and revieve echo reply back*/
-void run_client_loop(int server_fd);
+// Function to send and receive messages 
+void sendMessages(int serverFd);
 
 #endif

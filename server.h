@@ -29,7 +29,7 @@ int createServerSocket(void);
 void handleClients(int listenFd);
 
 // function to add new client in array 
-void addClient(int clients[], int newSocket);
+int addClient(int clients[], int newSocket);
 
 // function that removes client from array 
 void removeClient(int clients[], int index);

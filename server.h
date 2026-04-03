@@ -1,10 +1,7 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-#ifndef SERVER_H
-#define SERVER_H
-
-/* Libraries needed for server functions */
+// server libraries used 
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -15,29 +12,26 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-/* CONSTANT VALUES */
+// server constants defined 
 #define SERVER_PORT 8080
 #define BUFFER_SIZE 1024
 #define MAX_CLIENTS 10
 #define BACKLOG 10
 
-/*Function Declarations */
 
-/* server entry */
-void run_server(void);
+// main level server function 
+void runServer(void);
 
-/* Prepare the listening socket */
-int create_server_socket(void);
+// creates listening socket for client requests 
+int createServerSocket(void);
 
-/* Main server loop */
-void run_server_loop(int listen_fd);
+// handle client manages all the clients and messages 
+void handleClients(int listenFd);
 
-/* Store clients */
-void add_client(int client_sockets[], int new_fd);
+// function to add new client in array 
+void addClient(int clients[], int newSocket);
 
-/* Function to remove client */
-void remove_client(int client_sockets[], int index);
+// function that removes client from array 
+void removeClient(int clients[], int index);
 
 #endif
-
-

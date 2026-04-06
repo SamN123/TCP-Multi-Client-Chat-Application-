@@ -22,7 +22,7 @@ void runClient(void)
 }
 
 /* =========================================================
-  connectToServer creates a socket and connects to lisening 
+  connectToServer creates a socket and connects to listening 
   socket. It uses functions socket() and connect(). 
    ========================================================= */
 int connectToServer(void)

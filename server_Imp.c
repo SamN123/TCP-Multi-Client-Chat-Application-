@@ -196,7 +196,7 @@ void handleClients(int listenFd)
         }
         else
         {
-            printf("Chat payload received from client %d: %s", i + 1, message);
+            printf("Message from client %d: %s", i + 1, message);
 
             if (send(clients[i], message, bytesRead, 0) < 0)
             {

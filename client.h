@@ -27,4 +27,7 @@ int connectToServer(void);
 // Function to send and receive messages 
 void sendMessages(int serverFd);
 
+// Function to auhtenticate users 
+int loginClient(int serverFd);
+
 #endif

@@ -12,12 +12,19 @@ void runClient(void)
 {
     int serverFd = connectToServer();
 
-    printf("Connected to server.\n");
-    printf("Type any message and press Enter.\n");
-    printf("Type negative number to exit.\n");
+    printf("Connected to the chat server.\n");
+
+    if (!loginClient(serverFd))
+    {
+        close(serverFd);
+        return;
+    }
+
+    printf("Access granted. You can start sending messages now.\n");
+    printf("Enter any message and press Enter.\n");
+    printf("Enter a negative number when you want to leave.\n");
 
     sendMessages(serverFd);
-
     close(serverFd);
 }
 
@@ -67,6 +74,71 @@ int connectToServer(void)
     return serverFd;
 }
 
+// Function to authenticate user credentials during login 
+int loginClient(int serverFd)
+{
+    char user[100];
+    char pass[100];
+    char loginMsg[BUFFER_SIZE];
+    char serverReply[BUFFER_SIZE];
+    ssize_t bytesRead;
+
+    memset(user, 0, sizeof(user));
+    memset(pass, 0, sizeof(pass));
+    memset(loginMsg, 0, sizeof(loginMsg));
+    memset(serverReply, 0, sizeof(serverReply));
+
+    printf("Login username: ");
+    if (fgets(user, sizeof(user), stdin) == NULL)
+    {
+        printf("Error. No username was entered.\n");
+        return 0;
+    }
+
+    printf("Login password: ");
+    if (fgets(pass, sizeof(pass), stdin) == NULL)
+    {
+        printf("Error. No password was entered.\n");
+        return 0;
+    }
+
+    user[strcspn(user, "\n")] = '\0';
+    pass[strcspn(pass, "\n")] = '\0';
+
+    snprintf(loginMsg, sizeof(loginMsg), "AUTH|%s|%s", user, pass);
+
+    if (send(serverFd, loginMsg, strlen(loginMsg), 0) < 0)
+    {
+        perror("Login request could not be sent");
+        return 0;
+    }
+
+    bytesRead = recv(serverFd, serverReply, BUFFER_SIZE - 1, 0);
+
+    if (bytesRead > 0)
+    {
+        serverReply[bytesRead] = '\0';
+
+        if (strcmp(serverReply, "AUTH_OK") == 0)
+        {
+            return 1;
+        }
+
+        printf("Error. Credentials are invalid.\n");
+        return 0;
+    }
+    else if (bytesRead == 0)
+    {
+        printf("Session closed before login finished.\n");
+        return 0;
+    }
+    else
+    {
+        perror("Login reply was not received");
+        return 0;
+    }
+}
+
 /* =========================================================
    sendMessages( ) is used to facilitate message transfer 
    
@@ -93,7 +165,7 @@ void sendMessages(int serverFd)
         // Reads keyboard line using fgets( ) 
         if (fgets(outgoing, BUFFER_SIZE, stdin) == NULL)
         {
-            printf("\nInput ended.\n");
+            printf("\nInput ended. Closing chat session.\n");
             break;
         }
 
@@ -112,17 +184,11 @@ void sendMessages(int serverFd)
         // send() to send message to server 
         if (send(serverFd, outgoing, strlen(outgoing), 0) < 0)
         {
-            perror("send");
+            perror("Message could not be sent to the server.");
             break;
         }
 
-        /* -------------------------------------------------
-           Wait for the server to echo the message back:
-           
-           > 0 : reply received
-           = 0 : server closed the connection
-           < 0 : error
-           ------------------------------------------------- */
+      // waits for message to be echoed back 
         bytesReceived = recv(serverFd, incoming, BUFFER_SIZE - 1, 0);
 
         if (bytesReceived > 0)
@@ -137,7 +203,7 @@ void sendMessages(int serverFd)
         }
         else
         {
-            perror("recv");
+            perror("Message could not be recieved from the server.");
             break;
         }
     }

@@ -6,7 +6,7 @@ void runServer(void)
 {
     int listenFd = createServerSocket();
 
-    printf("Server started on port %d...\n", SERVER_PORT);
+    printf("Chat server is live on port %d.\n", SERVER_PORT);
 
     handleClients(listenFd);
 
@@ -83,6 +83,7 @@ int createServerSocket(void)
 void handleClients(int listenFd)
 {
     int clients[MAX_CLIENTS];
+    int isLoggedIn[MAX_CLIENTS];
     fd_set readSet;
     int i;
 
@@ -90,6 +91,7 @@ void handleClients(int listenFd)
     for (i = 0; i < MAX_CLIENTS; i++)
     {
         clients[i] = -1;
+        isLoggedIn[i] = 0;
     }
 
     // infinite while loop to run server 
@@ -140,11 +142,11 @@ void handleClients(int listenFd)
             else
             {
                 int clientIndex = addClient(clients, newSocket);
-
-                if (clientIndex != -1)
-             {
-                printf("Client %d connected.\n", clientIndex + 1);
-             }
+                 if (clientIndex != -1)
+              {
+                isLoggedIn[clientIndex] = 0;
+                printf("Client arrived and is waiting for login.\n");
+              }
             }
          }
 
@@ -152,44 +154,68 @@ void handleClients(int listenFd)
         for (i = 0; i < MAX_CLIENTS; i++)
         {
             if (clients[i] != -1 && FD_ISSET(clients[i], &readSet))
+       {
+        char message[BUFFER_SIZE];
+        char user[100];
+        char pass[100];
+        ssize_t bytesRead;
+
+        memset(message, 0, sizeof(message));
+        memset(user, 0, sizeof(user));
+        memset(pass, 0, sizeof(pass));
+
+       bytesRead = recv(clients[i], message, BUFFER_SIZE - 1, 0);
+
+       if (bytesRead > 0)
+        {
+        message[bytesRead] = '\0';
+
+        if (!isLoggedIn[i])
+        {
+            if (parseLoginMsg(message, user, pass) &&
+                verifyUser(user, pass))
             {
-                char message[BUFFER_SIZE];
-                ssize_t bytesRead;
+                isLoggedIn[i] = 1;
 
-                // clears buffer 
-                memset(message, 0, sizeof(message));
-
-                // reads data using recv( ) 
-                bytesRead = recv(clients[i], message,
-                                 BUFFER_SIZE - 1, 0);
-
-                if (bytesRead > 0)
+                if (send(clients[i], "AUTH_OK", 7, 0) < 0)
                 {
-                
-                    message[bytesRead] = '\0';
-
-                    printf("Message received from client %d: %s", i + 1, message);
-
-                    // echoes message back to client 
-                    if (send(clients[i], message, bytesRead, 0) < 0)
-                    {
-                        perror("send");
-                        removeClient(clients, i);
-                    }
-                }
-                else if (bytesRead == 0)
-                {
-                    // recv() == 0 means the client closed the connection 
-                    printf("Client in slot %d disconnected.\n", i);
-                    removeClient(clients, i);
+                    perror("Server could not return login approval");
+                    removeClient(clients, isLoggedIn, i);
                 }
                 else
                 {
-                    // recv() < 0 means a socket read error happened
-                    perror("recv");
-                    removeClient(clients, i);
+                    printf("Client %d logged in as %s.\n", i + 1, user);
                 }
             }
+            else
+            {
+                send(clients[i], "AUTH_FAIL", 9, 0);
+                printf("Client %d failed login and was removed.\n", i + 1);
+                removeClient(clients, isLoggedIn, i);
+            }
+        }
+        else
+        {
+            printf("Chat payload received from client %d: %s", i + 1, message);
+
+            if (send(clients[i], message, bytesRead, 0) < 0)
+            {
+                perror("Server could not echo message back");
+                removeClient(clients, isLoggedIn, i);
+            }
+        }
+    }
+    else if (bytesRead == 0)
+    {
+        printf("Client %d closed the connection.\n", i + 1);
+        removeClient(clients, isLoggedIn, i);
+    }
+    else
+    {
+        perror("Server recv call failed");
+        removeClient(clients, isLoggedIn, i);
+    }
+}
         }
     }
 }
@@ -214,11 +240,88 @@ int addClient(int clients[], int newSocket)
 }
 
 // removeClient() removes client from array 
-void removeClient(int clients[], int index)
+void removeClient(int clients[], int isLoggedIn[], int index)
 {
     if (clients[index] != -1)
     {
         close(clients[index]);
         clients[index] = -1;
+        isLoggedIn[index] = 0;
     }
+}
+
+// helper function to parse the the message to match with text file 
+int parseLoginMsg(const char *msg, char *user, char *pass)
+{
+    char localCopy[BUFFER_SIZE];
+    char *token;
+
+    if (strncmp(msg, "AUTH|", 5) != 0)
+    {
+        return 0;
+    }
+
+    memset(localCopy, 0, sizeof(localCopy));
+    strncpy(localCopy, msg, sizeof(localCopy) - 1);
+
+    token = strtok(localCopy, "|");
+    if (token == NULL)
+    {
+        return 0;
+    }
+
+    token = strtok(NULL, "|");
+    if (token == NULL)
+    {
+        return 0;
+    }
+    strncpy(user, token, 99);
+    user[99] = '\0';
+
+    token = strtok(NULL, "|");
+    if (token == NULL)
+    {
+        return 0;
+    }
+    strncpy(pass, token, 99);
+    pass[99] = '\0';
+
+    return 1;
+}
+
+// helper function to help verify credentials 
+int verifyUser(const char *user, const char *pass)
+{
+    FILE *file;
+    char line[256];
+
+    file = fopen(CREDENTIALS_FILE, "r");
+    if (file == NULL)
+    {
+        perror("The credential file could not be opened");
+        return 0;
+    }
+
+    while (fgets(line, sizeof(line), file) != NULL)
+    {
+        char *fUser;
+        char *fPass;
+
+        line[strcspn(line, "\n")] = '\0';
+
+        fUser = strtok(line, ",");
+        fPass = strtok(NULL, ",");
+
+        if (fUser != NULL && fPass != NULL)
+        {
+            if (strcmp(fUser, user) == 0 && strcmp(fPass, pass) == 0)
+            {
+                fclose(file);
+                return 1;
+            }
+        }
+    }
+
+    fclose(file);
+    return 0;
 }

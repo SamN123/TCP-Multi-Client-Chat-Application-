@@ -207,7 +207,7 @@ void handleClients(int listenFd)
     }
     else if (bytesRead == 0)
     {
-        printf("Client %d closed the connection.\n", i + 1);
+        printf("Client closed the connection.\n");
         removeClient(clients, isLoggedIn, i);
     }
     else

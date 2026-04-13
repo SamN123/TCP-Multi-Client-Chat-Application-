@@ -184,19 +184,19 @@ void handleClients(int listenFd)
                 }
                 else
                 {
-                    printf("Client %d logged in as %s.\n", i + 1, user);
+                    printf("Client logged in as %s.\n", user);
                 }
             }
             else
             {
                 send(clients[i], "AUTH_FAIL", 9, 0);
-                printf("Client %d failed login and was removed.\n", i + 1);
+                printf("Client failed login and was removed.\n");
                 removeClient(clients, isLoggedIn, i);
             }
         }
         else
         {
-            printf("Message from client %d: %s", i + 1, message);
+            printf("Message from client: %s", message);
 
             if (send(clients[i], message, bytesRead, 0) < 0)
             {

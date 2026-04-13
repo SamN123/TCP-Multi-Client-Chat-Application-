@@ -17,7 +17,7 @@
 #define BUFFER_SIZE 1024
 #define MAX_CLIENTS 10
 #define BACKLOG 10
-
+#define CREDENTIALS_FILE "users.txt"
 
 // main level server function 
 void runServer(void);
@@ -32,6 +32,12 @@ void handleClients(int listenFd);
 int addClient(int clients[], int newSocket);
 
 // function that removes client from array 
-void removeClient(int clients[], int index);
+void removeClient(int clients[], int isLoggedIn[], int index);
+
+// helper function to obtain login information from text 
+int parseLoginMsg(const char *msg, char *user, char *pass);
+
+// helper function to authenticate user information 
+int verifyUser(const char *user, const char *pass);
 
 #endif
